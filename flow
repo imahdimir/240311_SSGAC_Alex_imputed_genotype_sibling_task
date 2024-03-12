@@ -1,0 +1,7 @@
+I filtered snps with maf > 1% and being in the either .3-.31 of info score or .99-1 using filter_snps() in py. I save the resulting rsids in the txt files in med dir.
+
+I then filtered the sibs ids from kin file to use it later in the plink command to get only the sibs ids. using filter_sibs() in py.
+
+I then filtered the parent-offspring pairs from the kin file to use it later in the plink command to get only the parent-offspring pairs ids. using filter_parent_offspring() in py.
+
+Then I ran two bash scripts filter_bgen_sibs.sh and the parent-offspring pairs and sibs respectively.
