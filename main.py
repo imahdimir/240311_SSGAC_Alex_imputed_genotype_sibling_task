@@ -3,11 +3,11 @@
 
     """
 
+import itertools
+import numpy as np
 import pandas as pd
 from bgen_reader import open_bgen
 from pathlib import Path
-import numpy as np
-import itertools
 
 class MfiCols :
     maf = 5
@@ -19,7 +19,10 @@ class Dirs :
     med = '/var/genetics/ws/mahdimir/med/imputed_genotype-sibling-task-240311'
     med = Path(med)
     plink_out = med / 'plink_out'
-    
+    out = '/var/genetics/ws/mahdimir/DropBox/0-all/1-out-all/imputed_genotype-sibling-task-240311'
+    out = Path(out)
+    out_dta = out / 'dta'
+
 dyr = Dirs()
 
 ##
@@ -91,7 +94,7 @@ def filter_sibs() :
     dfb = pd.concat([df1 , df2])
     dfb = dfb.iloc[: , :2]
 
-    dfb.to_csv(dyr.med_gpro + '/sibs.txt' ,
+    dfb.to_csv(dyr.med + '/sibs.txt' ,
                index = False ,
                header = False ,
                sep = '\t')
@@ -99,13 +102,15 @@ def filter_sibs() :
 ##
 def filter_parent_offspring() :
     """ """
+
     ##
     rel_fp = '/disk/genetics/ukb/alextisyoung/haplotypes/relatives/bedfiles/hap.kin0'
 
     df = pd.read_csv(rel_fp , sep = '\s+' , dtype = 'string')
 
     ##
-    # keep only full sibs
+
+    # keep only parent offspring pairs
     msk = df['InfType'].eq('PO')
     dfa = df[msk]
 
@@ -118,7 +123,7 @@ def filter_parent_offspring() :
     dfb = pd.concat([df1 , df2])
     dfb = dfb.iloc[: , :2]
 
-    dfb.to_csv(dyr.med_gpro + '/parent_offspring.txt' ,
+    dfb.to_csv(dyr.med + '/parent_offspring.txt' ,
                index = False ,
                header = False ,
                sep = '\t')
@@ -196,133 +201,80 @@ def save_hard_calls_of_all_vars_from_bgen(bgen_fp) :
     df_h.to_parquet(_fp , index = False)
 
 ##
-def get_sib_pairs_ids() :
+def gat_pairs_ids_in_pairs(identifier) :
     """ """
 
-    ##
     rel_fp = '/disk/genetics/ukb/alextisyoung/haplotypes/relatives/bedfiles/hap.kin0'
     df = pd.read_csv(rel_fp , sep = '\s+' , dtype = 'string')
 
-    msk = df['InfType'].eq('FS')
+    msk = df['InfType'].eq(identifier)
 
     df = df[msk]
 
     df = df[['ID1' , 'ID2']]
 
-    ##
     return df
 
-def get_dosages_and_hardcall_of_all_vars_fr_bgen(bgen_fp) :
+##
+def make_prq_fp(gts_type , info_score , pair_suf) :
     """ """
-
-    ##
-    _fp = dyr.out / 'df_h.parquet'
-    df_h.to_parquet(_fp)
-
-    ##
-    _fpd = dyr.out / 'df_d.parquet'
-    _fph = dyr.out / 'df_h.parquet'
-
-    df_d = pd.read_parquet(_fpd)
-    df_h = pd.read_parquet(_fph)
-
-    ##
-    dfs = [df_d , df_h]
-
-    ##
-    methods = {
-            0 : 'dosages' ,
-            1 : 'hard_calls'
-            }
-
-    for df , mtd in zip(dfs , methods.values()) :
-        save_corr_of_sib_pairs_with_gts_df(99 , mtd , df)
-
-    ##
-    return df_d , df_h
+    prq_fp = dyr.med / f'{gts_type}_snps_{info_score}{pair_suf}.prq'
+    return prq_fp
 
 ##
-def make_sib_pairs_gts(df_gts , df_sibs) :
+def make_pairs_gts_dfs(df_gts , df_pairs_ids) :
     """ """
-    if False :
-        pass
-
-        ##
-        bgen_fp = '/disk/genetics/ukb/mahdimir/imputed_genotype_corr_Tammys_analysis_replication/plink_out/bgen_30.bgen'
-
-        ##
-        df_gts = get_hard_calls_of_all_vars_from_bgen(bgen_fp)
 
     ##
-    df_sib1 = pd.merge(df_sibs[['ID1']] ,
-                       df_gts ,
-                       left_on = 'ID1' ,
-                       right_on = 'IID' ,
-                       how = 'left')
-    df_sib2 = pd.merge(df_sibs[['ID2']] ,
-                       df_gts ,
-                       left_on = 'ID2' ,
-                       right_on = 'IID' ,
-                       how = 'left')
+    dfa = pd.merge(df_pairs_ids[['ID1']] ,
+                   df_gts ,
+                   left_on = 'ID1' ,
+                   right_on = 'IID' ,
+                   how = 'left')
+    dfb = pd.merge(df_pairs_ids[['ID2']] ,
+                   df_gts ,
+                   left_on = 'ID2' ,
+                   right_on = 'IID' ,
+                   how = 'left')
 
     ##
-    df_sib1 = df_sib1.drop(columns = ['ID1'])
-    df_sib2 = df_sib2.drop(columns = ['ID2'])
+    dfa = dfa.drop(columns = ['ID1'])
+    dfb = dfb.drop(columns = ['ID2'])
 
     ##
-    return df_sib1 , df_sib2
+    return dfa , dfb
 
 ##
-def save_corr_of_sib_pairs(info_score) :
-    """ """
-    if False :
-        pass
-
-        ##
-        info_score = 99
-
-    ##
-    bg_fp = '/disk/genetics/ukb/mahdimir/imputed_genotype_corr_Tammys_analysis_replication/plink_out/bgen_{}.bgen'
-    bg_fp = bg_fp.format(info_score)
-    bg_fp
-
-    ##
-    _f = get_dosages_and_hardcall_of_all_vars_fr_bgen
-    dfs = _f(bg_fp)
-
-    ##
-    methods = {
-            0 : 'dosages' ,
-            1 : 'hard_calls'
-            }
-
-    for df , mtd in zip(dfs , methods.values()) :
-        save_corr_of_sib_pairs_with_gts_df(info_score , mtd , df)
-
-    ##
-
-    ##
-
-def save_corr_of_sib_pairs_with_gts_df(info_score , gts_method , df_gts) :
+def save_corr_of_sib_pairs_with_gts_df(pair_identifier ,
+                                       gts_type ,
+                                       info_score ,
+                                       pair_type ,
+                                       pair_suf
+                                       ) :
     """ """
 
     ##
-    df_sibs = get_sib_pairs_ids()
+    df_pairs_ids = gat_pairs_ids_in_pairs(pair_identifier)
 
     ##
-    df_sib1 , df_sib2 = make_sib_pairs_gts(df_gts , df_sibs)
+    prq_fp = make_prq_fp(gts_type , info_score , pair_suf)
+    df_gts = pd.read_parquet(prq_fp)
 
     ##
-    gts1 = df_sib1.iloc[: , 1 :]
-    gts2 = df_sib2.iloc[: , 1 :]
+    dfa , dfb = make_pairs_gts_dfs(df_gts , df_pairs_ids)
+
+    ##
+    gts1 = dfa.iloc[: , 1 :]
+    gts2 = dfb.iloc[: , 1 :]
 
     ##
     df_cors = gts1.corrwith(gts2 , method = 'pearson')
 
     ##
-    out_fp = dyr.out / f'sib_corr_{gts_method}_{info_score}.csv'
-    df_cors.to_csv(out_fp , index = False , header = False)
+    out_fp = dyr.out_dta / f'corr_{pair_type}_{gts_type}_{info_score}.xlsx'
+    df_cors.to_excel(out_fp , index = False , header = False)
     print(out_fp)
+
 
 ##
 def main() :
@@ -335,8 +287,13 @@ def main() :
             }
 
     pairs = {
-            'sibs'             : '' ,
-            'parent_offspring' : '_po' ,
+            'sibs'             : ('' , 'FS') ,
+            'parent_offspring' : ('_po' , 'PO') ,
+            }
+
+    gts_types = {
+            0 : 'dosages' ,
+            1 : 'hard_calls'
             }
 
     ##
@@ -344,12 +301,38 @@ def main() :
 
     for info , pair in prd :
         print(info , pair)
-        fp = dyr.plink_out / f'snps_{info}{pair}.bgen'
+        fp = dyr.plink_out / f'snps_{info}{pair[0]}.bgen'
         print(fp)
 
         save_dosages_of_all_vars_from_bgen(fp)
 
         save_hard_calls_of_all_vars_from_bgen(fp)
+
+    ##
+    prd = itertools.product(info_scores.values() ,
+                            pairs.keys() ,
+                            gts_types.values())
+
+    for info , pair_type , gm in prd :
+        pair_iden = pairs[pair_type][1]
+        print(info , pair_type , gm)
+        pair_suf = pairs[pair_type][0]
+        save_corr_of_sib_pairs_with_gts_df(pair_iden ,
+                                           gm ,
+                                           info ,
+                                           pair_type ,
+                                           pair_suf
+                                           )
+
+
+    ##
+
+
+
+
+    ##
+
+    ##
 
     ##
 
